@@ -1,0 +1,78 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <math.h>
+
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+#define MPU 0x68
+#define BUZZER 26
+#define THRESHOLD 30.0
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+  pinMode(BUZZER, OUTPUT);
+
+  // Wake up MPU6050
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  Wire.endTransmission(true);
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(10, 20);
+  display.println("Starting!");
+  display.display();
+  delay(2000);
+}
+
+void loop() {
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, 6, true);
+
+  int16_t ax = Wire.read() << 8 | Wire.read();
+  int16_t ay = Wire.read() << 8 | Wire.read();
+  int16_t az = Wire.read() << 8 | Wire.read();
+
+  float pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+  float roll  = atan2(ay, sqrt(ax * ax + az * az)) * 180.0 / PI;
+
+  Serial.print("Pitch:");
+  Serial.print(pitch);
+  Serial.print(" Roll:");
+  Serial.println(roll);
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(25, 0);
+  display.println("INCLINOMETER");
+  display.drawLine(0, 10, 128, 10, WHITE);
+
+  display.setTextSize(2);
+  display.setCursor(0, 15);
+  display.print("P:");
+  display.println(pitch, 1);
+  display.setCursor(0, 38);
+  display.print("R:");
+  display.println(roll, 1);
+  display.display();
+
+  // Buzzer alert
+  if (abs(pitch) > THRESHOLD || abs(roll) > THRESHOLD) {
+    digitalWrite(BUZZER, HIGH);
+    delay(100);
+    digitalWrite(BUZZER, LOW);
+    delay(100);
+  } else {
+    digitalWrite(BUZZER, LOW);
+  }
+
+  delay(200);
+}
